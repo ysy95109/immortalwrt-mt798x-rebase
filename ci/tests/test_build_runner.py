@@ -18,7 +18,8 @@ class BuildRunnerTests(unittest.TestCase):
         self.temporary = tempfile.TemporaryDirectory()
         self.addCleanup(self.temporary.cleanup)
         self.root = Path(self.temporary.name)
-        shutil.copytree(CI, self.root / "ci", ignore=shutil.ignore_patterns("__pycache__", "tests"))
+        shutil.copytree(CI, self.root / "ci", ignore=shutil.ignore_patterns(
+            "__pycache__", "tests", "presets", "configs", "assets", "feeds"))
         for name in ("presets", "scripts", "defconfig", "assets", "commands"):
             (self.root / name).mkdir()
         (self.root / "package").mkdir()
@@ -104,6 +105,28 @@ printf 'image' > bin/targets/mediatek/filogic/router-initramfs.itb
         self.assertTrue((self.root / ".ci-incremental/source-times.json").is_file())
         self.assertFalse((self.root / "package/ci-custom").exists())
         self.assertIn('# CONFIG_AUTOREMOVE is not set', (self.root / "output/example/build.config").read_text())
+
+    def test_preset_feeds_are_installed_and_recorded(self):
+        selected = "src-git packages https://example.com/packages.git^" + "a" * 40 + "\n"
+        (self.root / "presets/feeds.conf").write_text(selected)
+        self.preset(feeds_file="presets/feeds.conf")
+        result = self.run_build(CI_CONFIGURE_ONLY="1")
+        self.assertEqual(result.returncode, 0, result.stdout)
+        self.assertEqual((self.root / "feeds.conf").read_text(), selected)
+        self.assertEqual((self.root / "output/example/metadata/feeds.conf").read_text(), selected)
+        # Re-running with the same selection also works.
+        self.assertEqual(self.run_build(CI_CONFIGURE_ONLY="1").returncode, 0)
+
+    def test_conflicting_local_feeds_fail_before_touching_the_workspace(self):
+        (self.root / "presets/feeds.conf").write_text("# preset feeds\n")
+        (self.root / "feeds.conf").write_text("# manually selected feeds\n")
+        self.preset(feeds_file="presets/feeds.conf")
+        result = self.run_build()
+        self.assertNotEqual(result.returncode, 0)
+        self.assertIn("Existing feeds.conf differs", result.stdout)
+        self.assertEqual((self.root / "feeds.conf").read_text(), "# manually selected feeds\n")
+        self.assertFalse((self.root / ".config").exists())
+        self.assertFalse((self.root / "output").exists())
 
 
 if __name__ == "__main__":

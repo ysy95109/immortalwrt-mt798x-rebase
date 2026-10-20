@@ -133,6 +133,18 @@ class CheckpointTests(unittest.TestCase):
         with self.assertRaisesRegex(ValueError, "existing build state"):
             checkpoint.restore(self.root, self.archive, self.family)
 
+    def test_selected_feeds_define_family_before_the_working_feeds_file_exists(self):
+        selected = self.root / "selected-feeds.conf"
+        selected.write_text("# selected feeds\n")
+        (self.root / "ci/presets/example.json").write_text(json.dumps({
+            "name": "example", "device": "router", "feeds_file": "selected-feeds.conf"}))
+        family = checkpoint.identity(self.root, "example", self.environment)
+        self.assertNotEqual(family, self.family)
+        (self.root / "feeds.conf").write_text(selected.read_text())
+        self.assertEqual(checkpoint.identity(self.root, "example", self.environment), family)
+        selected.write_text("# new selected feeds\n")
+        self.assertNotEqual(checkpoint.identity(self.root, "example", self.environment), family)
+
     def test_newly_tracked_sources_cannot_be_overwritten_by_old_generated_files(self):
         self.prepare_state()
         self.discard_build_state()

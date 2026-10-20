@@ -66,7 +66,7 @@ def identity(root, name, environment=None):
         path = root / filename
         if path.is_file() and not path.is_symlink():
             toolchain[filename] = digest(path)
-    feed_config = root / ("feeds.conf" if (root / "feeds.conf").is_file() else "feeds.conf.default")
+    feed_config = root / preset.get("feeds_file", "feeds.conf" if (root / "feeds.conf").is_file() else "feeds.conf.default")
     payload = {
         "schema": SCHEMA, "repository": environment.get("GITHUB_REPOSITORY", "local"),
         "ref": environment.get("GITHUB_REF", "local"), "preset": name,

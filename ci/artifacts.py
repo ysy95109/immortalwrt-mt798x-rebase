@@ -122,6 +122,17 @@ def collect_artifacts(target_dir, image_glob, output_dir, required=()):
             _require_regular_file(path)
             selected.append(path)
 
+    # OpenWrt also emits a target-wide manifest without the device in its name.
+    # Match both the target suffix and the distribution prefix of our images,
+    # so manifests left by another device or distribution are not exported.
+    manifest_suffix = f"-{target.parent.name}-{target.name}.manifest"
+    for path in sorted(target.iterdir()):
+        if (path.name.endswith(manifest_suffix)
+                and any(image.name.startswith(path.stem + "-") for image in images)
+                and path not in selected):
+            _require_regular_file(path)
+            selected.append(path)
+
     selected_names = {path.name for path in selected}
     if output.exists():
         for path in _output_files(output):

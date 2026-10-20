@@ -146,7 +146,7 @@ def load_catalog(root=ROOT):
     names = set()
     for filename in sorted((root / "ci/presets").glob("*.json")):
         build = json.loads(filename.read_text())
-        fields = {"name", "enabled", "description", "requirements", "device", "config_file",
+        fields = {"name", "enabled", "description", "requirements", "device", "config_file", "feeds_file",
                   "features", "feature_options", "packages", "kconfig", "overlays", "files"}
         if not isinstance(build, dict) or set(build) - fields:
             raise ValueError(f"Unknown preset fields in {filename.name}")
@@ -164,6 +164,8 @@ def load_catalog(root=ROOT):
             raise ValueError(f"Unknown device in {name}")
         if "config_file" in build:
             checked_path(root, build["config_file"], f"{name}.config_file")
+        if "feeds_file" in build:
+            checked_path(root, build["feeds_file"], f"{name}.feeds_file")
         build.setdefault("features", [])
         string_list(build["features"], f"{name}.features")
         for feature in build["features"]:

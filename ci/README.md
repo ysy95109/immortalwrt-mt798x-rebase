@@ -34,6 +34,7 @@ ci/
 | `enabled` | `false` 时仅保存配置，不参与构建；模板默认关闭 |
 | `device` | 引用 `devices.json` 中已支持的设备 |
 | `config_file` | 可选，引用已验证的本地 `.config`；省略时使用设备的基础 defconfig |
+| `feeds_file` | 可选，引用该组合的 feeds 配置，可固定到具体提交；省略时使用工作区默认 feeds |
 | `features` | 功能模块名称数组，如 `honk`、`oxidns`、`wireguard` |
 | `feature_options` | 所选模块的参数，例如源码 `ref`；具体见下文 |
 | `packages.include` | 强制内置的普通软件包名称，无需为每个包编写模块 |
@@ -150,6 +151,8 @@ bash ci/build.sh example
 ```
 
 主脚本只接收组合名，设备、软件包及文件都从该配置读取。它会重建工作区 `.config`，拒绝覆盖现有 `files/` 和 `package/ci-custom/`。默认更新并安装 feeds、应用配置及模块、运行 `make defconfig`、准备额外文件，再下载和编译。`CI_CONFIGURE_ONLY=1` 在配置与额外文件准备完成后停止；`CI_SKIP_FEEDS_UPDATE=1` 可复用已有 feeds；`CI_JOBS=4` 等正整数可限制编译并行数。仅配置模式仍可能需要联网。
+
+指定 `feeds_file` 时会在专用工作区创建 `feeds.conf`；若已有 `feeds.conf` 内容不同，脚本会停止，避免覆盖手工配置。
 
 在 GitHub 上，提交框架及实际组合后，使用 **Actions → Build ImmortalWrt Firmware → Run workflow** 选择分支并填写组合名，或者用 `all` 构建所有启用的组合。新增组合会自动进入 matrix，未启用的草稿不会参与构建。
 

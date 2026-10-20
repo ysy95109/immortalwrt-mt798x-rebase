@@ -208,6 +208,19 @@ class CatalogTests(unittest.TestCase):
         with self.assertRaisesRegex(ValueError, "config_file not found"):
             catalog.load_catalog(self.root)
 
+    def test_selected_feeds_config_must_exist_inside_the_repository(self):
+        (self.root / "selected-feeds.conf").write_text("# pinned feeds\n")
+        self.builds[0]["feeds_file"] = "selected-feeds.conf"
+        self.write_catalog()
+        self.assertEqual(catalog.get_preset("personal", self.root)["feeds_file"], "selected-feeds.conf")
+        (self.root / "selected-feeds.conf").unlink()
+        with self.assertRaisesRegex(ValueError, "feeds_file not found"):
+            catalog.load_catalog(self.root)
+        self.builds[0]["feeds_file"] = "../outside.conf"
+        self.write_catalog()
+        with self.assertRaisesRegex(ValueError, "must stay inside"):
+            catalog.load_catalog(self.root)
+
 
 class ConfigurationTests(unittest.TestCase):
     def setUp(self):

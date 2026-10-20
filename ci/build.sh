@@ -21,6 +21,11 @@ if [[ -z "$DEFCONFIG" ]]; then
     DEFCONFIG="$(jq -r .defconfig <<<"$DEVICE_JSON")"
     APPLY_COMMAND=apply
 fi
+FEEDS_FILE="$(jq -r '.feeds_file // empty' <<<"$PRESET_JSON")"
+if [[ -n "$FEEDS_FILE" && -e feeds.conf ]] && ! cmp -s "$FEEDS_FILE" feeds.conf; then
+    echo "Existing feeds.conf differs from $FEEDS_FILE; use a dedicated checkout or resolve it explicitly." >&2
+    exit 1
+fi
 CONFIG_SYMBOL="$(jq -r .config_symbol <<<"$DEVICE_JSON")"
 TARGET_DIR="bin/targets/$(jq -r .target_dir <<<"$DEVICE_JSON")"
 IMAGE_GLOB="$(jq -r .image_glob <<<"$DEVICE_JSON")"
@@ -71,6 +76,9 @@ trap 'exit 130' INT
 trap 'exit 143' TERM
 
 printf 'Preset: %s\nDevice: %s\nFeatures: %s\n' "$PRESET" "$DEVICE" "$FEATURES"
+if [[ -n "$FEEDS_FILE" && ! -e feeds.conf ]]; then
+    cp "$FEEDS_FILE" feeds.conf
+fi
 if [[ "${CI_SKIP_FEEDS_UPDATE:-0}" != 1 ]]; then
     ./scripts/feeds update -a
 fi

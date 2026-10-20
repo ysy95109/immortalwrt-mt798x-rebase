@@ -61,6 +61,27 @@ class ArtifactTests(unittest.TestCase):
             self.source(name)
         self.assertEqual(self.collect(), sorted(names))
 
+    def test_target_wide_manifest_matches_current_image_distribution_and_target(self):
+        self.target = self.root / "bin/targets/mediatek/filogic"
+        self.target.mkdir(parents=True)
+        self.source("immortalwrt-mediatek-filogic-device-a-sysupgrade.bin")
+        self.source("immortalwrt-mediatek-filogic.manifest", b"current packages")
+        self.source("openwrt-mediatek-filogic.manifest", b"old distribution")
+        self.source("immortalwrt-mediatek-filogic-device-b.manifest", b"other device")
+        self.source("immortalwrt-mediatek-mt7622.manifest", b"other subtarget")
+        self.assertEqual(self.collect(), ["immortalwrt-mediatek-filogic-device-a-sysupgrade.bin",
+                                          "immortalwrt-mediatek-filogic.manifest"])
+        self.assertEqual((self.output / "immortalwrt-mediatek-filogic.manifest").read_bytes(),
+                         b"current packages")
+
+    def test_target_wide_manifest_symlink_is_rejected(self):
+        self.target = self.root / "bin/targets/mediatek/filogic"
+        self.target.mkdir(parents=True)
+        image = self.source("immortalwrt-mediatek-filogic-device-a-sysupgrade.bin")
+        (self.target / "immortalwrt-mediatek-filogic.manifest").symlink_to(image)
+        with self.assertRaisesRegex(artifacts.ArtifactError, "regular file"):
+            self.collect()
+
     def test_missing_firmware_fails_without_creating_output(self):
         with self.assertRaisesRegex(artifacts.ArtifactError, "no nonempty firmware"):
             self.collect()

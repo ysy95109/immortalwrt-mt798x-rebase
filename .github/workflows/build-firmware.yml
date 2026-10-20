@@ -8,9 +8,15 @@ on:
         required: true
         default: all
         type: string
+      fresh:
+        description: "Ignore earlier build state and start a clean build"
+        required: true
+        default: false
+        type: boolean
 
 permissions:
   contents: read
+  actions: read
 
 concurrency:
   group: immortalwrt-${{ github.ref }}-${{ inputs.preset }}
@@ -47,11 +53,15 @@ jobs:
     name: ${{ matrix.name }}
     runs-on: ubuntu-24.04
     timeout-minutes: 360
+    concurrency:
+      group: firmware-state-${{ github.ref }}-${{ matrix.name }}
+      cancel-in-progress: false
     strategy:
       fail-fast: false
       max-parallel: 2
       matrix: ${{ fromJSON(needs.prepare.outputs.matrix) }}
     env:
+      CI_INCREMENTAL: '1'
       # rules.mk uses CONFIG_CCACHE_DIR, defaulting to the source tree's .ccache.
       CCACHE_DIR: ${{ github.workspace }}/.ccache
       CCACHE_MAXSIZE: 2G
@@ -77,28 +87,42 @@ jobs:
             python3-setuptools rsync swig unzip zlib1g-dev file wget curl jq \
             ccache dwarves zstd patch bzip2 perl time
 
-      # Every preset and run has its own save key. Restore prefixes still allow
-      # matrix jobs to share downloaded sources without racing to save one key.
-      - name: Restore downloads
-        id: downloads
-        uses: actions/cache/restore@55cc8345863c7cc4c66a329aec7e433d2d1c52a9 # v6
-        with:
-          path: dl
-          key: immortalwrt-dl-v1-${{ runner.os }}-${{ matrix.name }}-${{ github.run_id }}-${{ github.run_attempt }}
-          restore-keys: |
-            immortalwrt-dl-v1-${{ runner.os }}-${{ matrix.name }}-
-            immortalwrt-dl-v1-${{ runner.os }}-
+      - name: Identify compatible build state
+        id: state
+        env:
+          PRESET: ${{ matrix.name }}
+        run: |
+          set -euo pipefail
+          python3 ci/checkpoint.py identity "$PRESET" >> "$GITHUB_OUTPUT"
 
-      - name: Restore compiler cache
-        id: ccache
-        uses: actions/cache/restore@55cc8345863c7cc4c66a329aec7e433d2d1c52a9 # v6
+      - name: Find earlier full checkpoint
+        id: previous
+        if: ${{ !inputs.fresh }}
+        env:
+          PREFIX: ${{ steps.state.outputs.prefix }}
+          GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+        run: |
+          set -euo pipefail
+          python3 ci/checkpoint.py discover "$PREFIX" >> "$GITHUB_OUTPUT"
+
+      - name: Download full build checkpoint
+        if: ${{ !inputs.fresh && steps.previous.outputs.name != '' }}
+        uses: actions/download-artifact@9000827ccba6bdab643e8b6fd33ac0654aef8333 # v8.0.2
         with:
-          path: .ccache
-          key: immortalwrt-ccache-v1-${{ runner.os }}-${{ matrix.device }}-${{ matrix.name }}-${{ hashFiles('ci/**', 'toolchain/**/Makefile') }}-${{ github.run_id }}-${{ github.run_attempt }}
-          restore-keys: |
-            immortalwrt-ccache-v1-${{ runner.os }}-${{ matrix.device }}-${{ matrix.name }}-${{ hashFiles('ci/**', 'toolchain/**/Makefile') }}-
-            immortalwrt-ccache-v1-${{ runner.os }}-${{ matrix.device }}-${{ matrix.name }}-
-            immortalwrt-ccache-v1-${{ runner.os }}-${{ matrix.device }}-
+          name: ${{ steps.previous.outputs.name }}
+          run-id: ${{ steps.previous.outputs.run_id }}
+          github-token: ${{ secrets.GITHUB_TOKEN }}
+          path: ${{ runner.temp }}/firmware-state-restore
+
+      - name: Restore complete build state
+        if: ${{ !inputs.fresh && steps.previous.outputs.name != '' }}
+        env:
+          FAMILY: ${{ steps.state.outputs.family }}
+          STATE_DOWNLOAD: ${{ runner.temp }}/firmware-state-restore
+        run: |
+          set -euo pipefail
+          python3 ci/checkpoint.py restore "$STATE_DOWNLOAD" "$FAMILY"
+          rm -rf -- "$STATE_DOWNLOAD"
 
       - name: Build firmware
         id: build
@@ -120,24 +144,8 @@ jobs:
             ccache --show-stats
           fi
 
-      - name: Save downloads
-        if: ${{ !cancelled() && steps.build.outcome != 'skipped' && steps.downloads.outputs.cache-hit != 'true' }}
-        continue-on-error: true
-        uses: actions/cache/save@55cc8345863c7cc4c66a329aec7e433d2d1c52a9 # v6
-        with:
-          path: dl
-          key: ${{ steps.downloads.outputs.cache-primary-key }}
-
-      - name: Save compiler cache
-        if: ${{ !cancelled() && steps.build.outcome != 'skipped' && steps.ccache.outputs.cache-hit != 'true' }}
-        continue-on-error: true
-        uses: actions/cache/save@55cc8345863c7cc4c66a329aec7e433d2d1c52a9 # v6
-        with:
-          path: .ccache
-          key: ${{ steps.ccache.outputs.cache-primary-key }}
-
       - name: Upload firmware
-        if: ${{ success() && steps.build.outcome == 'success' }}
+        if: ${{ !cancelled() && steps.build.outcome == 'success' }}
         uses: actions/upload-artifact@cf430e030ddbb5b0abf93d22962f4752f3646cd9 # v7
         with:
           name: firmware-${{ matrix.name }}-${{ github.sha }}-attempt${{ github.run_attempt }}
@@ -145,6 +153,31 @@ jobs:
           if-no-files-found: error
           compression-level: 0
           retention-days: 14
+
+      # Save intermediate successes even when a later compilation step fails.
+      # The archive preserves Unix modes, links and nanosecond timestamps.
+      - name: Pack complete build checkpoint
+        id: checkpoint
+        if: ${{ !cancelled() && (steps.build.outcome == 'success' || steps.build.outcome == 'failure') }}
+        env:
+          FAMILY: ${{ steps.state.outputs.family }}
+          STATE_UPLOAD: ${{ runner.temp }}/firmware-state-save
+        run: |
+          set -euo pipefail
+          if [[ -f .ci-incremental/source-times.json ]]; then
+            python3 ci/checkpoint.py pack "$STATE_UPLOAD" "$FAMILY"
+            echo 'ready=true' >> "$GITHUB_OUTPUT"
+          fi
+
+      - name: Save complete build checkpoint
+        if: ${{ !cancelled() && steps.checkpoint.outputs.ready == 'true' }}
+        uses: actions/upload-artifact@cf430e030ddbb5b0abf93d22962f4752f3646cd9 # v7
+        with:
+          name: ${{ steps.state.outputs.prefix }}${{ github.run_id }}-${{ github.run_attempt }}
+          path: ${{ runner.temp }}/firmware-state-save/
+          if-no-files-found: error
+          compression-level: 0
+          retention-days: 90
 
       - name: Upload failure diagnostics
         if: failure()

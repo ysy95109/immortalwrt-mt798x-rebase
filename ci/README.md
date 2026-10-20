@@ -151,7 +151,30 @@ bash ci/build.sh example
 
 主脚本只接收组合名，设备、软件包及文件都从该配置读取。它会重建工作区 `.config`，拒绝覆盖现有 `files/` 和 `package/ci-custom/`。默认更新并安装 feeds、应用配置及模块、运行 `make defconfig`、准备额外文件，再下载和编译。`CI_CONFIGURE_ONLY=1` 在配置与额外文件准备完成后停止；`CI_SKIP_FEEDS_UPDATE=1` 可复用已有 feeds；`CI_JOBS=4` 等正整数可限制编译并行数。仅配置模式仍可能需要联网。
 
-在 GitHub 上，提交框架及实际组合后，使用 **Actions → Build ImmortalWrt Firmware → Run workflow** 选择分支并填写组合名，或者用 `all` 构建所有启用的组合。新增组合会自动进入 matrix，未启用的草稿不会参与构建。workflow 默认只缓存 `dl/` 与 `.ccache/`。
+在 GitHub 上，提交框架及实际组合后，使用 **Actions → Build ImmortalWrt Firmware → Run workflow** 选择分支并填写组合名，或者用 `all` 构建所有启用的组合。新增组合会自动进入 matrix，未启用的草稿不会参与构建。
+
+## GitHub Actions 完整增量构建
+
+workflow 默认启用 `CI_INCREMENTAL=1`，通过独立的 `build-state-…` artifact 保存完整构建状态。下一次运行自动下载最近一份兼容快照，恢复后继续执行 OpenWrt 的增量构建。首次运行或者没有兼容快照时从头编译。
+
+快照包含 `build_dir/`、`staging_dir/`、`bin/`、`tmp/`、`dl/`、`.ccache/`、feeds 及其安装链接、Kconfig 编译产物、构建配置和已生成的签名密钥；自定义模块源码会保存在 `.ci-incremental/custom-sources/` 中复用。`CONFIG_AUTOREMOVE` 在此模式下强制关闭，防止 OpenWrt 编译完成后自动删除软件包构建目录。当前源码由正常 checkout 获取，工作区根 `.git` 和进程环境不会被主动归档。
+
+快照使用 tar + zstd，保留 Unix 权限、链接和纳秒时间戳。框架还会记录源码内容散列：fresh checkout 或模块重新准备后，仅对内容和权限均未改变的源码恢复原时间戳。这样 OpenWrt 的时间戳及 `.prepared`、`.configured`、`.built` 等依赖判断能够继续使用；实际改动的源码保留新内容和新时间戳，正常触发重编译。`files/` 每次仍重新组装，以免旧组合文件残留。
+
+| 变化 | 恢复策略 |
+| --- | --- |
+| 同一分支、同一组合重跑 | 复用兼容的完整状态 |
+| 源码提交变化、增减插件或更换 HTML／二进制 | 可复用状态，由 OpenWrt 重建受影响部分 |
+| 组合、设备、编译器／libc 选择、工具链或目标平台定义变化 | 使用不同快照组，没有兼容状态时从头编译 |
+| runner 镜像、宿主机依赖版本或工作区绝对路径变化 | 从头编译，避免复用不兼容的主机工具和绝对路径 |
+
+同一组合的构建任务会串行执行，`all` 与单独构建该组合也共用同一个并发组。需要主动全新构建时，在 **Run workflow** 勾选 `fresh`；它会忽略旧快照，成功保存后可供后续运行继续使用。
+
+普通编译失败时，退出钩子仍会记录状态，后续步骤保存已完成的工具链、工具和软件包，方便下次接续；runner 被取消、强制终止或超时时，本轮新进度无法保证上传，之前已保存的快照仍可使用。校验失败会报错，可用 `fresh` 重新开始；保存或上传完整状态失败也会使 workflow 报错，不会静默退回仅 ccache 的保存方式。固件 artifact 会在快照打包前上传。
+
+完整状态默认保留 **90 天**，受仓库 artifact 保留策略、存储额度和 runner 磁盘容量限制；打包和恢复还需要容纳一份压缩归档。每次运行会产生独立快照，历史快照不会自动删除。快照过期或被删除后会重新完整编译。保留天数可修改 workflow 的 `Save complete build checkpoint`；GitHub 对 artifact 的限制见[官方设置说明](https://docs.github.com/en/repositories/managing-your-repositorys-settings-and-features/managing-repository-settings/managing-github-actions-settings-for-a-repository)。
+
+本地也可用 `CI_INCREMENTAL=1 bash ci/build.sh example` 保留输入状态并复用模块源码；完整归档的上传、查找和下载由 Actions 负责。
 
 ## 产物与追溯
 

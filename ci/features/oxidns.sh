@@ -18,10 +18,8 @@ ref="$(jq -r '.ref // "HEAD"' <<<"$options")"
 work=$(mktemp -d "$CI_WORK_DIR/oxidns.XXXXXX")
 trap 'rm -rf -- "$work"' EXIT
 
-git init -q "$work/source"
-git -C "$work/source" remote add origin "$source_url"
-git -C "$work/source" fetch --depth 1 origin "$ref"
-git -C "$work/source" checkout --detach FETCH_HEAD
+source ci/package-source.sh
+ci_checkout_package "$source_url" "$ref" "$work/source" luci-app-oxidns
 commit=$(git -C "$work/source" rev-parse HEAD)
 [[ -f "$work/source/Makefile" ]] || { echo 'OxiDNS: upstream package Makefile is missing' >&2; exit 1; }
 mv -- "$work/source" "$source_dir"

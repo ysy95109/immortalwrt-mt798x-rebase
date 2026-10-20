@@ -289,6 +289,11 @@ class ConfigurationTests(unittest.TestCase):
         prepared, _ = self.prepare()
         self.assertEqual(configuration.options(prepared)["CONFIG_CCACHE_DIR"], '""')
 
+    def test_incremental_mode_keeps_package_build_directories(self):
+        prepared, required = configuration.prepare(self.base.read_text() + 'CONFIG_AUTOREMOVE=y\n', TARGET, incremental=True)
+        self.assertEqual(configuration.options(prepared)["CONFIG_AUTOREMOVE"], "n")
+        configuration.validate(prepared, TARGET, required)
+
     def test_preset_package_overrides_replace_base_choices(self):
         prepared, required = self.prepare()
         prepared += 'CONFIG_PACKAGE_curl=m\nCONFIG_PACKAGE_nano=y\n'

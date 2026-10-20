@@ -3,6 +3,7 @@
 
 from pathlib import Path
 import json
+import os
 import re
 import sys
 
@@ -20,7 +21,7 @@ def options(text):
     return result
 
 
-def prepare(base, symbol):
+def prepare(base, symbol, incremental=False):
     overrides = {
         "CONFIG_TARGET_MULTI_PROFILE": "y",
         "CONFIG_TARGET_ALL_PROFILES": "n",
@@ -33,6 +34,8 @@ def prepare(base, symbol):
         "CONFIG_CCACHE_DIR": '""',
         symbol: "y",
     }
+    if incremental:
+        overrides["CONFIG_AUTOREMOVE"] = "n"
     lines = []
     for line in base.splitlines():
         match = ASSIGNMENT.fullmatch(line) or DISABLED.fullmatch(line)
@@ -103,7 +106,7 @@ if __name__ == "__main__":
     try:
         command, filename, symbol, requirements = sys.argv[1:]
         if command == "prepare":
-            config, required = prepare(Path(filename).read_text(), symbol)
+            config, required = prepare(Path(filename).read_text(), symbol, incremental=os.environ.get("CI_INCREMENTAL") == "1")
             Path(".config").write_text(config)
             Path(requirements).write_text(required)
         elif command == "validate":

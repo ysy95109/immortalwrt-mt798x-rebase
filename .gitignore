@@ -38,5 +38,6 @@ git-src
 /package/custom
 /package/ci-custom
 /ci-build.log
+/.ci-incremental
 /ci/**/__pycache__
 .vscode*

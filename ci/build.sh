@@ -50,6 +50,11 @@ CONFIG_STARTED=0
 finish() {
     local status=$?
     trap - EXIT
+    if [[ "${CI_INCREMENTAL:-0}" == 1 && "$CONFIG_STARTED" == 1 ]]; then
+        # Capture while feature repositories still exist. This also checkpoints
+        # completed tools/packages when a later build step fails.
+        python3 ci/checkpoint.py capture || status=1
+    fi
     # Successful artifacts are already checksummed. Only refresh diagnostics on
     # failure, so the EXIT handler cannot change a checksummed file afterward.
     if (( status != 0 )); then
@@ -83,6 +88,11 @@ python3 ci/config.py "$APPLY_COMMAND" .config "$CI_PRESET_FILE" "$CI_REQUIRED_CO
 
 make defconfig
 python3 ci/config.py validate .config "$CONFIG_SYMBOL" "$CI_REQUIRED_CONFIG"
+if [[ "${CI_INCREMENTAL:-0}" == 1 ]]; then
+    # New checkouts and re-created feature files otherwise invalidate OpenWrt's
+    # timestamp-based prepared/configured/built stamps even with identical data.
+    python3 ci/checkpoint.py reuse-times
+fi
 RESOLVED_TARGET="$(sed -n 's/^CONFIG_TARGET_BOARD="\(.*\)"$/\1/p' .config)/$(sed -n 's/^CONFIG_TARGET_SUBTARGET="\(.*\)"$/\1/p' .config)"
 [[ "$TARGET_DIR" == "bin/targets/$RESOLVED_TARGET" ]] || {
     echo "Resolved target $RESOLVED_TARGET does not match $TARGET_DIR" >&2

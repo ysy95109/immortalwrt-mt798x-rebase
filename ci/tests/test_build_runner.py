@@ -97,6 +97,14 @@ printf 'image' > bin/targets/mediatek/filogic/router-initramfs.itb
         self.assertFalse((output / "SHA256SUMS").exists())
         self.assertFalse((self.root / "captured-rootfs").exists())
 
+    def test_incremental_mode_records_inputs_before_owned_directories_are_removed(self):
+        self.preset()
+        result = self.run_build(CI_INCREMENTAL="1")
+        self.assertEqual(result.returncode, 0, result.stdout)
+        self.assertTrue((self.root / ".ci-incremental/source-times.json").is_file())
+        self.assertFalse((self.root / "package/ci-custom").exists())
+        self.assertIn('# CONFIG_AUTOREMOVE is not set', (self.root / "output/example/build.config").read_text())
+
 
 if __name__ == "__main__":
     unittest.main()

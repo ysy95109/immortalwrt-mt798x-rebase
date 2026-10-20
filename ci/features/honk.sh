@@ -16,10 +16,8 @@ source_dir="$CI_PACKAGE_DIR/luci-app-honk"
 [[ ! -e "$source_dir" && ! -L "$source_dir" ]]
 work="$(mktemp -d "$CI_WORK_DIR/honk.XXXXXX")"
 trap 'rm -rf -- "$work"' EXIT
-git init -q "$work/source"
-git -C "$work/source" remote add origin "$source_url"
-git -C "$work/source" fetch --depth 1 origin "$ref"
-git -C "$work/source" checkout --detach FETCH_HEAD
+source ci/package-source.sh
+ci_checkout_package "$source_url" "$ref" "$work/source" luci-app-honk
 commit="$(git -C "$work/source" rev-parse HEAD)"
 [[ -f "$work/source/honk/Makefile" && -f "$work/source/luci-app-honk/Makefile" ]]
 

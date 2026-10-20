@@ -1,0 +1,15 @@
+[
+  {
+    "id": "doona",
+    "source": "ci/assets/doona",
+    "destination": "/etc/honk/doona",
+    "required_files": ["index.html"]
+  },
+  {
+    "id": "caddy-cloudflare",
+    "source": "ci/assets/caddy-linux-arm64",
+    "destination": "/usr/bin/caddy",
+    "architecture": "aarch64",
+    "mode": "0755"
+  }
+]

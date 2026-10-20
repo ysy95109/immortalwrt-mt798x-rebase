@@ -34,4 +34,9 @@ git-src
 .project
 .cproject
 .ccache
+/output
+/package/custom
+/package/ci-custom
+/ci-build.log
+/ci/**/__pycache__
 .vscode*

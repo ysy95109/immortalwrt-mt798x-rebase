@@ -1,0 +1,13 @@
+{
+  "name": "example",
+  "enabled": false,
+  "description": "Copy this template into ci/presets/ and supply verified inputs before enabling",
+  "device": "ruijie_rg-x60-pro",
+  "config_file": "ci/configs/example.config",
+  "features": [],
+  "feature_options": {},
+  "packages": {"include": [], "exclude": []},
+  "kconfig": {},
+  "overlays": [],
+  "files": []
+}

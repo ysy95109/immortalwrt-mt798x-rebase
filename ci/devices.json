@@ -1,0 +1,10 @@
+{
+  "ruijie_rg-x60-pro": {
+    "defconfig": "defconfig/mt7986-ax6000.config",
+    "config_symbol": "CONFIG_TARGET_DEVICE_mediatek_filogic_DEVICE_ruijie_rg-x60-pro",
+    "target_dir": "mediatek/filogic",
+    "architecture": "aarch64",
+    "image_glob": "*ruijie_rg-x60-pro*",
+    "required_images": ["sysupgrade", "initramfs"]
+  }
+}

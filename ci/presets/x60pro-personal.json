@@ -1,0 +1,23 @@
+{
+  "name": "x60pro-personal",
+  "enabled": true,
+  "description": "Personal RG-X60 Pro: backed-up configuration, WireGuard and Caddy with Cloudflare DNS",
+  "device": "ruijie_rg-x60-pro",
+  "config_file": "ci/configs/x60pro-personal.config",
+  "feeds_file": "ci/feeds/x60pro-personal.conf",
+  "features": [],
+  "packages": {"include": [], "exclude": []},
+  "kconfig": {},
+  "overlays": [],
+  "files": [
+    {
+      "id": "personal-files",
+      "source": "ci/assets/x60pro-personal/files.tar.gz",
+      "sha256": "3b40155a6e970a41d85f08825b4cee575a682e2260ee0498a0468207d6b033ce",
+      "archive": "tar",
+      "strip_components": 1,
+      "destination": "/",
+      "required_files": ["usr/bin/caddy", "etc/init.d/caddy"]
+    }
+  ]
+}

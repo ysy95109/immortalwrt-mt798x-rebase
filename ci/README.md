@@ -2,12 +2,12 @@
 
 每种组合单独保存在 `ci/presets/<名称>.json`。设备、软件包、功能模块和额外文件分别配置；增加或调整组合无需复制 workflow。所有路径以仓库根目录为基准。
 
-当前只搭建框架，`ci/presets/` 没有实际构建配置。以下需求留待后续提供已验证的本地配置后接入：
+当前已接入个人配置 `x60pro-personal`；其余两种需求留待后续接入：
 
-| 后续组合 | 设备 | 已知需求 | 当前安排 |
+| 组合 | 设备 | 已知需求 | 当前安排 |
 | --- | --- | --- | --- |
 | 客户配置 | X60 Pro | Honk、Doona、OxiDNS、WireGuard | 等待实际本地配置 |
-| 个人配置 | X60 Pro | WireGuard、含 Cloudflare DNS 的 Caddy | 等待实际本地配置及二进制 |
+| `x60pro-personal` | X60 Pro | WireGuard、含 Cloudflare DNS 的 Caddy | 已导入上传的配置和文件备份 |
 | 第三种配置 | EW-6000GX Pro | iStore 商店；基础固件没有 Passwall 时补入 | 后续单开分支完成设备适配 |
 
 旧的 `x60-personal`、`x60-clean` 已移除。这里没有替三个组合选择版本、启动参数、域名或令牌，也没有创建 EW-6000GX Pro 的目标 profile。
@@ -135,7 +135,13 @@ python3 ci/matrix.py --check
 python3 -m unittest discover -s ci/tests
 ```
 
-当前应显示 `Validated 0 preset(s)`。实际组合尚未接入，Actions 和构建命令会明确报出没有启用的组合。
+当前应显示 `Validated 1 preset(s)`。构建已接入的个人配置：
+
+```bash
+bash ci/build.sh x60pro-personal
+```
+
+该组合直接复用上传的完整 `.config`，不再重复应用 WireGuard 模块；Caddy `v2.11.7`、Cloudflare DNS 模块 `v0.2.4` 和启动脚本来自原始 `files.tar.gz`，解包时去掉外层 `files/`，保留执行权限。备份不含 `/etc/caddy/Caddyfile`；本次按需求沿用设备上已有的运行配置，不生成或修改该文件。feeds 固定为本次配置检查所用提交。
 
 以后添加组合后，先查看最终配置和 matrix：
 
